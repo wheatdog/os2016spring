@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include <stdlib.h>
+#include <sys/time.h>
 #include <sys/syscall.h>
 #define gettime(A) syscall(315, A)
 void print_result(int pid, struct timespec ts[2]){
