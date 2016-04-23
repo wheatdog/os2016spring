@@ -6,6 +6,7 @@
 
 int main(int argc, char** argv)
 {
+	
 	pid_t pid = getpid(); 
 	int execution_time = atoi(argv[2]);
 	int x;
@@ -18,8 +19,11 @@ int main(int argc, char** argv)
 			execution_time--;
 		}
 
-		if (execution_time > 0)
-			sched_yield();
+		if (execution_time > 0) {
+			struct sched_param param;
+			param.sched_priority = 97;
+			sched_setscheduler(0, SCHED_FIFO, & param);
+		}
 	}
 	return 0;
 }
