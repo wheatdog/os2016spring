@@ -42,7 +42,7 @@ void readFile(int N, FIFO* fifo_scheduler) {
 
 void executeFork(FIFO* scheduler, int* nextforfork, int clock, int N) {
 	while (*nextforfork < N && clock == scheduler[*nextforfork].ready_time) {
-		if ((scheduler[*nextforfork].pid = vfork()) < 0) {
+		if ((scheduler[*nextforfork].pid = fork()) < 0) {
 			fprintf(stderr, "fork error\n");
 			exit(1);
 		}
