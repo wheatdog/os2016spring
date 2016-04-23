@@ -5,7 +5,7 @@
 #include <sched.h>
 #include <sys/wait.h>
 #include <fcntl.h>
-
+#include "printtime.h"
 #define MAX_BUF 100
 
 typedef struct fifo {
@@ -30,7 +30,8 @@ int cmp(const void* a, const void* b) {
 }
 
 void readFile(int N, FIFO* fifo_scheduler) {
-	for (int i = 0; i < N; i++) {
+	int i;
+	for (i = 0; i < N; i++) {
 		scanf("%s%d%d", fifo_scheduler[i].name, &fifo_scheduler[i].ready_time, &fifo_scheduler[i].execution_time);
 		pipe(fifo_scheduler[i].fd);
 		fcntl(fifo_scheduler[i].fd[0], F_SETFD, FD_CLOEXEC);
@@ -41,24 +42,25 @@ void readFile(int N, FIFO* fifo_scheduler) {
 
 void executeFork(FIFO* scheduler, int* nextforfork, int clock, int N) {
 	while (*nextforfork < N && clock == scheduler[*nextforfork].ready_time) {
-		if ((scheduler[*nextforfork].pid = fork()) < 0) {
+		if ((scheduler[*nextforfork].pid = vfork()) < 0) {
 			fprintf(stderr, "fork error\n");
 			exit(1);
 		}
 
-		if (fifo_scheduler[*nextforfork].pid == 0) {
+		if (scheduler[*nextforfork].pid == 0) {
 			char buffer[MAX_BUF] = {0};
 			sprintf(buffer, "%d", scheduler[*nextforfork].execution_time);
 			dup2(scheduler[*nextforfork].fd[0], STDIN_FILENO);
+
 			if (execl("./child", "child", scheduler[*nextforfork].name, buffer, (char*)0) < 0) {
 				fprintf( stderr, "exec error\n");
 				exit(2);
 			}
 		}
 
-		else (scheduler[*nextforfork].pid > 0) {
+		if (scheduler[*nextforfork].pid > 0) {
 			close(scheduler[*nextforfork].fd[0]);
-			*nextforfork++;
+			*nextforfork = *nextforfork + 1;
 		}
 	}
 }
@@ -77,15 +79,12 @@ int main()
 	struct sched_param param;
 	param.sched_priority = 98;
 	sched_setscheduler(0, SCHED_FIFO, & param);
-
-	FIFO* fifo_scheduler = (FIFO*)malloc(N * sizeof(FIFO));
-
+	int i;
 	int N;
 	scanf("%d", &N);
+	FIFO* fifo_scheduler = (FIFO*)malloc(N * sizeof(FIFO));
 	readFile(N, fifo_scheduler);
-
 	qsort(fifo_scheduler, N, sizeof(FIFO), cmp);
-
 	int clock = 0;
 	int Index = 0;
 	int nextforfork = 0;
@@ -107,7 +106,6 @@ int main()
 		char buffer[MAX_BUF] = {0};
 		sprintf(buffer, "%d", time);
 		write(fifo_scheduler[Index].fd[1], buffer, MAX_BUF);
-
 		struct sched_param paramforchild;
 		paramforchild.sched_priority = 99;
 		sched_setscheduler(fifo_scheduler[Index].pid, SCHED_FIFO, &paramforchild);
@@ -121,9 +119,11 @@ int main()
 			gettime(&fifo_scheduler[Index].time[1]);
 			Index++;
 		}
+		
 	}
-	for (int i = 0; i < N; i++) {
-		printf("%s %d %d\n", fifo_scheduler[i].name, fifo_scheduler[i].ready_time, fifo_scheduler[i].execution_time);
+
+	for (i = 0; i < N; i++) {
+		print_result(fifo_scheduler[i].pid, fifo_scheduler[i].time);
 	}
 	return 0;
 }
