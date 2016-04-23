@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include "fifo.h"
+#include "sjf.h"
 #include "psjf.h"
 
 #define ArrayCount(Array) sizeof(Array)/sizeof((Array)[0])
@@ -39,12 +41,12 @@ int main()
     {
         case POLICY_FIFO:
         {
-            PSJF();
+            FIFO();
         } break;
 
         case POLICY_SJF:
         {
-            PSJF();
+            SJF();
         } break;
 
         case POLICY_PSJF:
@@ -54,7 +56,7 @@ int main()
 
         case POLICY_RR:
         {
-            RR();
+            break;
         } break;
     }
 
