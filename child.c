@@ -11,7 +11,7 @@ int main(int argc, char** argv)
 	int execution_time = atoi(argv[2]);
 	int x;
 	printf("%s %d\n", argv[1], pid);
-	while (execution_time > 0) {
+	while (1) {
 		scanf("%d", &x);
 		for (int j = x; j > 0; j--) {
 			volatile unsigned long i; 
@@ -19,11 +19,13 @@ int main(int argc, char** argv)
 			execution_time--;
 		}
 
-		if (execution_time > 0) {
-			struct sched_param param;
-			param.sched_priority = 97;
-			sched_setscheduler(0, SCHED_FIFO, & param);
-		}
+		if (execution_time <= 0) 
+			exit(0);
+
+		struct sched_param param;
+		param.sched_priority = 97;
+		sched_setscheduler(0, SCHED_FIFO, & param);
+
 	}
 	return 0;
 }

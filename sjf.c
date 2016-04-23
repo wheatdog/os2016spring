@@ -118,7 +118,7 @@ int main()
 		}
 
 		int time = decideTime(scheduler, N, nextforfork, Index, clock);
-		char buffer[MAX_BUF] = {0};
+		char buffer[MAX_BUF] = {0};	
 		sprintf(buffer, "%d", time);
 		write(scheduler[Index].fd[1], buffer, MAX_BUF);
 		struct sched_param paramforchild;
