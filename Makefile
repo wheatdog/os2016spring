@@ -1,7 +1,15 @@
-all: main
+all: main child
+OBJ = main.o psjf.o fifo.o sjf.o
+CFLAG = -std=c99
 
 %.o: %.c
-	gcc -std=c99 $< -c -o $@
+	gcc $(CFLAG) $< -c -o $@
 
-main: main.o psjf.o
-	gcc -std=c99 $^ -o main
+main: $(OBJ)
+	gcc $(CFLAG) $^ -o main
+
+child: child.o
+	gcc $(CFLAG) $^ -o $@
+
+clean:
+	rm $(OBJ)
