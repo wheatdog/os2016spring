@@ -4,6 +4,7 @@
 #include <sched.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <assert.h>
 #include "printtime.h"
 
 typedef unsigned int uint;
@@ -17,7 +18,7 @@ typedef struct
     int Recorded;
     struct timespec Time[2];
 
-    int Pipefd;
+    int Pipefd[2];
     pid_t Pid;
 } raw_input;
 
@@ -31,10 +32,9 @@ typedef struct
 /******************************************************************************/
 /* Debug Utilities for this file                                              */
 /******************************************************************************/
-#define DEBUG
-#ifdef DEBUG
-#include <assert.h>
+//#define DEBUG
 #include <wdb/wd_common.h>
+#ifdef DEBUG
 
 void
 PrintRawInput(int InputCount, raw_input *InputArray)
@@ -118,12 +118,9 @@ main()
     {
         scanf("%s%d%d", Raw[Index].Name, &Raw[Index].ReadyTime, &Raw[Index].ExecTime);
 
-        Raw[Index].Recorded = false;
+        Raw[Index].Recorded = 0;
 
-        int TempPipe[2];
-        pipe(TempPipe);
-        Raw[Index].Pipefd = TempPipe[1];
-        close(TempPipe[0]);
+        pipe(Raw[Index].Pipefd);
     }
 
     qsort(Raw, ProcessCount, sizeof(raw_input), CompareByReadyTime);
@@ -150,34 +147,43 @@ main()
     {
         if (!Running)
         {
-            assert(GetDataFromReadyQueue(&ReadyQueue, ReadyQueue.ElementCount)->ReadyTime >= TimeCounter);
-            uint WaitTime =
-                GetDataFromReadyQueue(&ReadyQueue, ReadyQueue.ElementCount)->ReadyTime -
-                TimeCounter;
-            TimeCounter += WaitTime;
-            WaitForNextProcess(WaitTime);
+            DebugPrint("h: %d \tc:%d\n", ReadyQueue.Head, ReadyQueue.ElementCount);
+            if (((FinishedProcessCount + ReadyQueue.ElementCount) != ProcessCount))
+            {
+                uint WaitTime =
+                    GetDataFromReadyQueue(&ReadyQueue, ReadyQueue.ElementCount)->ReadyTime -
+                    TimeCounter;
+                TimeCounter += WaitTime;
+                WaitForNextProcess(WaitTime);
+            }
         }
 
         // NOTE(wheatdog): Spawn new process
 
-        pid_t ChildPid = fork();
-        if (ChildPid < 0)
+        if (((FinishedProcessCount + ReadyQueue.ElementCount) != ProcessCount))
         {
-            fprintf(stderr, "fork error\n");
-            exit(0);
-        }
-        else if (ChildPid != 0)
-        {
-            GetDataFromReadyQueue(&ReadyQueue, ReadyQueue.ElementCount)->Pid = ChildPid;
-            ++ReadyQueue.ElementCount;
-        }
-        else
-        {
-            raw_input *NewProcess = GetDataFromReadyQueue(&ReadyQueue,
-                                                          ReadyQueue.ElementCount);
-            if (execl("./child", NewProcess->Name, NewProcess->ExecTime) < 0)
+            pid_t ChildPid = fork();
+            if (ChildPid < 0)
             {
-                fprintf(stderr, "exec error\n");
+                fprintf(stderr, "fork error\n");
+                exit(0);
+            }
+            else if (ChildPid != 0)
+            {
+                GetDataFromReadyQueue(&ReadyQueue, ReadyQueue.ElementCount)->Pid = ChildPid;
+                ++ReadyQueue.ElementCount;
+            }
+            else
+            {
+                raw_input *NewProcess = GetDataFromReadyQueue(&ReadyQueue,
+                                                              ReadyQueue.ElementCount);
+                dup2(NewProcess->Pipefd[0], 0);
+                char Buffer[128];
+                snprintf(Buffer, sizeof(Buffer), "%d", NewProcess->ExecTime);
+                if (execl("./child", "./child", NewProcess->Name, Buffer, 0) < 0)
+                {
+                    fprintf(stderr, "exec error\n");
+                }
             }
         }
 
@@ -191,7 +197,7 @@ main()
 
         Running = ReadyQueue.Data[ReadyQueue.Head];
 
-        int NeedWait = true;
+        int NeedWait = 1;
         uint ThisExecTime = Running->ExecTime;
 
         if (((FinishedProcessCount + ReadyQueue.ElementCount) != ProcessCount))
@@ -199,7 +205,7 @@ main()
             uint NextReadyTime = GetDataFromReadyQueue(&ReadyQueue, ReadyQueue.ElementCount)->ReadyTime;
             if (NextReadyTime < (TimeCounter + ThisExecTime))
             {
-                NeedWait = false;
+                NeedWait = 0;
                 ThisExecTime = NextReadyTime - TimeCounter;
             }
         }
@@ -207,7 +213,7 @@ main()
         if (!Running->Recorded)
         {
             gettime(&Running->Time[0]);
-            Running->Recorded = true;
+            Running->Recorded = 1;
         }
 
         TimeCounter += ThisExecTime;
@@ -216,7 +222,8 @@ main()
         // NOTE(wheatdog): Send data to Running
         char Buffer[128] = {};
         snprintf(Buffer, sizeof(Buffer), "%d", ThisExecTime);
-        write(Running->Pipefd, Buffer, sizeof(Buffer));
+        write(Running->Pipefd[1], Buffer, sizeof(Buffer));
+
         struct sched_param Param;
         Param.sched_priority = 99;
         sched_setscheduler(Running->Pid, SCHED_FIFO, &Param);
@@ -238,7 +245,7 @@ main()
         }
     }
 
-    free(Raw);
     free(ReadyQueue.Data);
+    free(Raw);
     return 0;
 }
