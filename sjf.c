@@ -6,6 +6,7 @@
 #include <sys/wait.h>
 #include <fcntl.h>
 #include "printtime.h"
+#include "sjf.h"
 #define MAX_BUF 100
 
 typedef struct {
@@ -18,7 +19,7 @@ typedef struct {
 	int flag;
 }DATA;
 
-int cmp(const void* a, const void* b) {
+static int cmp(const void* a, const void* b) {
 	DATA* aa = (DATA*)a;
 	DATA* bb = (DATA*)b;
 	if (aa->ready_time > bb-> ready_time)
@@ -29,7 +30,7 @@ int cmp(const void* a, const void* b) {
 		return 0;
 }
 
-int SJFcmp(const void* a, const void* b) {
+static int SJFcmp(const void* a, const void* b) {
 	DATA* aa = (DATA*)a;
 	DATA* bb = (DATA*)b;
 	if (aa->execution_time > bb->execution_time)
@@ -40,7 +41,7 @@ int SJFcmp(const void* a, const void* b) {
 		return 0;
 }
 
-void readFile(int N, DATA* scheduler) {
+static void readFile(int N, DATA* scheduler) {
 	int i;
 	for (i = 0; i < N; i++) {
 		scanf("%s%d%d", scheduler[i].name, &scheduler[i].ready_time, &scheduler[i].execution_time);
@@ -51,7 +52,7 @@ void readFile(int N, DATA* scheduler) {
 	}
 }
 
-void executeFork(DATA* scheduler, int* nextforfork, int clock, int N) {
+static void executeFork(DATA* scheduler, int* nextforfork, int clock, int N) {
 	while (*nextforfork < N && clock == scheduler[*nextforfork].ready_time) {
 		if ((scheduler[*nextforfork].pid = fork()) < 0) {
 			fprintf(stderr, "fork error\n");
@@ -76,7 +77,7 @@ void executeFork(DATA* scheduler, int* nextforfork, int clock, int N) {
 	}
 }
 
-int decideTime(DATA* scheduler, int N, int nextforfork, int Index, int clock) {
+static int decideTime(DATA* scheduler, int N, int nextforfork, int Index, int clock) {
 	if (nextforfork == N)
 		return scheduler[Index].execution_time;
 
@@ -85,7 +86,7 @@ int decideTime(DATA* scheduler, int N, int nextforfork, int Index, int clock) {
 	return ((time1 < time2)? time1 : time2);
 }
 
-void waitLoop(DATA* scheduler, int N, int nextforfork, int Index, int* clock) {
+static void waitLoop(DATA* scheduler, int N, int nextforfork, int Index, int* clock) {
 	while (nextforfork < N && Index == nextforfork && *clock < scheduler[nextforfork].ready_time) {
 		volatile unsigned long i; 
 		for(i = 0; i<1000000UL ; i++);
@@ -93,7 +94,7 @@ void waitLoop(DATA* scheduler, int N, int nextforfork, int Index, int* clock) {
 	}
 }
 
-void assign(DATA* scheduler, int N, int nextforfork, int *Index, int* clock) {
+static void assign(DATA* scheduler, int N, int nextforfork, int *Index, int* clock) {
 	int time = decideTime(scheduler, N, nextforfork, *Index, *clock);
 	char buffer[MAX_BUF] = {0};	
 	sprintf(buffer, "%d", time);
@@ -113,7 +114,7 @@ void assign(DATA* scheduler, int N, int nextforfork, int *Index, int* clock) {
 	}
 }
 
-int main() 
+int SJF() 
 {
 	struct sched_param param;
 	param.sched_priority = 98;
