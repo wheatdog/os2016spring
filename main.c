@@ -4,6 +4,7 @@
 #include "fifo.h"
 #include "sjf.h"
 #include "psjf.h"
+#include "rr.h"
 
 #define ArrayCount(Array) sizeof(Array)/sizeof((Array)[0])
 
@@ -56,7 +57,7 @@ int main()
 
         case POLICY_RR:
         {
-            break;
+            RR();
         } break;
     }
 

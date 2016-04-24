@@ -1,5 +1,5 @@
 TARGET = main child
-OBJ = main.o psjf.o fifo.o sjf.o
+OBJ = main.o psjf.o fifo.o sjf.o rr.o
 CFLAG = -std=c99
 
 all: $(TARGET)

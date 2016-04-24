@@ -1,10 +1,10 @@
+#include "printtime.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <sched.h>
 #include <fcntl.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include "printtime.h"
 
 #define TIME_QUANTUM 500
 #define STR_SIZE 50
@@ -24,7 +24,7 @@ struct ready_list {
 }; 
 	
 
-int cmp(const void* a,const void* b){
+static int cmp(const void* a,const void* b){
 	struct p_struct* pa = (struct p_struct*)a;
 	struct p_struct* pb = (struct p_struct*)b;
 	if(pa->r_time < pb->r_time){
@@ -35,10 +35,10 @@ int cmp(const void* a,const void* b){
 		return 0;
 	}
 }
-int min(int a, int b){
+static int min(int a, int b){
 	return (a < b)? a:b;
 }
-void fork_child(struct p_struct *p){
+static void fork_child(struct p_struct *p){
 	int fd[2];
 	pipe(fd);
 	//fcntl(fd[0], F_SETFD, FD_CLOEXEC);
@@ -60,13 +60,13 @@ void fork_child(struct p_struct *p){
 		p->fd = fd[1];
 	}
 }
-void wait_for_job(int time){
+static void wait_for_job(int time){
 	while(time > 0){
 		{ volatile unsigned long i; for(i=0;i<1000000UL;i++); }
 		time--;
 	}
 }
-void run_job(struct p_struct *process, int time){
+static void run_job(struct p_struct *process, int time){
 	if(time <= 0){
 		return;
 	}
@@ -83,7 +83,7 @@ void run_job(struct p_struct *process, int time){
 		exit(3);
 	}
 }
-struct ready_list* add_list(struct ready_list *job, struct p_struct *p){
+static struct ready_list* add_list(struct ready_list *job, struct p_struct *p){
 	struct ready_list *new_job = malloc(sizeof(struct ready_list));
 	new_job->process = p;
 	if(job == NULL){
@@ -97,7 +97,7 @@ struct ready_list* add_list(struct ready_list *job, struct p_struct *p){
 	}
 	return job;
 }
-struct ready_list* remove_list(struct ready_list *job){
+static struct ready_list* remove_list(struct ready_list *job){
 	fprintf(stderr, "die pid:%d n:%s\n", job->process->pid, job->process->name);
 	if(job->next == job){
 		free(job);
@@ -110,7 +110,7 @@ struct ready_list* remove_list(struct ready_list *job){
 	return next_job;
 }
 
-int main(){
+int RR(){
 	
 	char type[20];
 	scanf("%s", type);
