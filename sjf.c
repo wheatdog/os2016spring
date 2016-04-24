@@ -1,3 +1,5 @@
+#include "printtime.h"
+#include "sjf.h"
 #include <stdio.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -5,8 +7,6 @@
 #include <sched.h>
 #include <sys/wait.h>
 #include <fcntl.h>
-#include "printtime.h"
-#include "sjf.h"
 #define MAX_BUF 100
 
 typedef struct {
