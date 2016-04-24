@@ -41,8 +41,8 @@ int min(int a, int b){
 void fork_child(struct p_struct *p){
 	int fd[2];
 	pipe(fd);
-	//fcntl(fd[0], F_SETFD, FD_CLOEXEC);
-	//fcntl(fd[1], F_SETFD, FD_CLOEXEC);
+	fcntl(fd[0], F_SETFD, FD_CLOEXEC);
+	fcntl(fd[1], F_SETFD, FD_CLOEXEC);
 	if ((p->pid = fork()) < 0) {
 		fprintf(stderr, "fork error\n");
 		exit(1);
