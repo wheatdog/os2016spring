@@ -10,7 +10,6 @@ int main(int argc, char** argv)
 	pid_t pid = getpid(); 
 	int execution_time = atoi(argv[2]);
 	int x;
-	printf("%s %d\n", argv[1], pid);
 	while (1) {
 		int ret = scanf("%d", &x);
 		if(ret == EOF || ret == 0){
@@ -23,8 +22,10 @@ int main(int argc, char** argv)
 			execution_time--;
 		}
 
-		if (execution_time <= 0) 
+		if (execution_time <= 0) {
+			printf("%s %d\n", argv[1], pid);
 			exit(0);
+		}
 
 		struct sched_param param;
 		param.sched_priority = 97;
