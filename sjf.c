@@ -149,5 +149,6 @@ int SJF()
 	for (i = 0; i < N; i++) {
 		print_result(scheduler[i].pid, scheduler[i].time);
 	}
+	free(scheduler);
 	return 0;
 }
