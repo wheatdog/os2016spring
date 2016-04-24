@@ -17,6 +17,7 @@ int main(int argc, char** argv)
 			fprintf(stderr, "children%d: %s read EOF or error\n", pid, argv[1]);
 			exit(2);
 		}
+		fprintf(stderr, "children%d: %s %d, %d\n", pid, argv[1], x, execution_time);
 		for (int j = x; j > 0; j--) {
 			volatile unsigned long i; 
 			for(i = 0; i < 1000000UL; i++);
@@ -26,12 +27,15 @@ int main(int argc, char** argv)
 		if (execution_time <= 0) 
 			exit(0);
 
+		fprintf(stderr, "children:: finish %d\n", execution_time);
 		struct sched_param param;
 		param.sched_priority = 97;
 		if(sched_setscheduler(0, SCHED_FIFO, & param) < 0){
 			fprintf(stderr, "children%d: %s set sched err\n", pid, argv[1]);
 			exit(1);
 		}
+
 	}
+		fprintf(stderr, "children%d: %s end\n", pid, argv[1]);
 	return 0;
 }

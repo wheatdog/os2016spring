@@ -7,6 +7,7 @@
 #include <sched.h>
 #include <sys/wait.h>
 #include <fcntl.h>
+#include <string.h>
 #define MAX_BUF 100
 
 typedef struct {
@@ -86,11 +87,14 @@ static void waitLoop(DATA* scheduler, int N, int nextforfork, int Index, int* cl
 static void assign(DATA* scheduler, int N, int nextforfork, int *Index, int* clock) {
 	int time = decideTime(scheduler, N, nextforfork, *Index, *clock);
 	char buffer[MAX_BUF] = {0};	
-	sprintf(buffer, "%d", time);
-	write(scheduler[*Index].fd[1], buffer, MAX_BUF);
+	sprintf(buffer, "%d ", time);
+	write(scheduler[*Index].fd[1], buffer, strlen(buffer));
 	struct sched_param paramforchild;
 	paramforchild.sched_priority = 99;
-	sched_setscheduler(scheduler[*Index].pid, SCHED_FIFO, &paramforchild);
+	if (sched_setscheduler(scheduler[*Index].pid, SCHED_FIFO, &paramforchild) < 0) {
+	fprintf(stderr, "sched_setscheduler error\n");
+	exit(3);
+}
 
 	*clock = (*clock) + time;
 	scheduler[*Index].execution_time -= time;
@@ -133,5 +137,6 @@ int FIFO()
 	for (i = 0; i < N; i++) {
 		print_result(scheduler[i].pid, scheduler[i].time);
 	}
+	free(scheduler);
 	return 0;
 }
