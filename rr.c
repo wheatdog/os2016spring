@@ -10,7 +10,7 @@
 #define STR_SIZE 50
 
 struct p_struct {
-	char name[32];
+	char name[STR_SIZE];
 	int r_time;
 	int e_time;
 	struct timespec ts[2];
@@ -39,11 +39,10 @@ int min(int a, int b){
 	return (a < b)? a:b;
 }
 void fork_child(struct p_struct *p){
-	fprintf(stderr, "\tfork %d %s\n", p->pid, p->name);
 	int fd[2];
 	pipe(fd);
-	fcntl(fd[0], F_SETFD, FD_CLOEXEC);
-	fcntl(fd[1], F_SETFD, FD_CLOEXEC);
+	//fcntl(fd[0], F_SETFD, FD_CLOEXEC);
+	//fcntl(fd[1], F_SETFD, FD_CLOEXEC);
 	if ((p->pid = fork()) < 0) {
 		fprintf(stderr, "fork error\n");
 		exit(1);
@@ -62,14 +61,12 @@ void fork_child(struct p_struct *p){
 	}
 }
 void wait_for_job(int time){
-	fprintf(stderr, "idle %d\n", time);
 	while(time > 0){
 		{ volatile unsigned long i; for(i=0;i<1000000UL;i++); }
 		time--;
 	}
 }
 void run_job(struct p_struct *process, int time){
-	fprintf(stderr, "pid:%d n:%s run:%d\n", process->pid, process->name, time);
 	if(time <= 0){
 		return;
 	}
@@ -77,12 +74,14 @@ void run_job(struct p_struct *process, int time){
 		gettime(&process->ts[0]);
 	}
 	char str[STR_SIZE] = {0};
-	sprintf(str, "%d ", time);
-	fprintf(stderr, "%s\n",str);
-	write(process->fd, str, STR_SIZE);
+	sprintf(str, "%12d ", time);
+	write(process->fd, str, 13);
 	struct sched_param paramforchild;
 	paramforchild.sched_priority = 99;
-	sched_setscheduler(process->pid, SCHED_FIFO, &paramforchild);
+	if(sched_setscheduler(process->pid, SCHED_FIFO, &paramforchild) < 0 ){
+		fprintf(stderr, "set sched err\n");
+		exit(3);
+	}
 }
 struct ready_list* add_list(struct ready_list *job, struct p_struct *p){
 	struct ready_list *new_job = malloc(sizeof(struct ready_list));
@@ -110,13 +109,18 @@ struct ready_list* remove_list(struct ready_list *job){
 	free(job);
 	return next_job;
 }
+
 int main(){
+	
 	char type[20];
 	scanf("%s", type);
 
 	struct sched_param param;
 	param.sched_priority = 98;
-	sched_setscheduler(0, SCHED_FIFO, &param);
+	if(sched_setscheduler(0, SCHED_FIFO, &param) < 0 ){
+		fprintf(stderr, "set sched err\n");
+		exit(3);
+	}
 
 	int n;
 	scanf("%d", &n);
@@ -135,11 +139,13 @@ int main(){
 	while(finish < n){
 		fprintf(stderr, "f = %d %d\n", finish, n);
 		if(next < n && p_arr[next].r_time == cur_time){
-			fork_child(&p_arr[next]);
+			fork_child(&(p_arr[next]));
+			fprintf(stderr, "\tt:%d fork %d %s\n", cur_time, p_arr[next].pid, p_arr[next].name);
 			cur_job = add_list(cur_job, &p_arr[next]);
 			next++;
 		}
 		if(cur_job == NULL){
+			fprintf(stderr, "t:%d idle %d\n", cur_time, p_arr[next].r_time - cur_time);
 			wait_for_job(p_arr[next].r_time - cur_time);
 			cur_time = p_arr[next].r_time;
 			remain = TIME_QUANTUM;
@@ -148,8 +154,9 @@ int main(){
 		if(next < n &&
 		   p_arr[next].r_time - cur_time < remain &&
 		   p_arr[next].r_time - cur_time < cur_job->process->remain_time){
-			fprintf(stderr, "in 1\n");
 			int t = p_arr[next].r_time - cur_time;
+			fprintf(stderr, "to fork ");
+			fprintf(stderr, "t:%d pid:%d n:%s run:%d r:%d\n", cur_time, cur_job->process->pid, cur_job->process->name, t, cur_job->process->remain_time);
 			run_job(cur_job->process, t);
 
 			remain -= t;
@@ -158,7 +165,8 @@ int main(){
 			continue;
 		}
 		if(remain < cur_job->process->remain_time){
-			fprintf(stderr, "in 2\n");
+			fprintf(stderr, "to next ");
+			fprintf(stderr, "t:%d pid:%d n:%s run:%d r:%d\n", cur_time, cur_job->process->pid, cur_job->process->name, remain, cur_job->process->remain_time);
 			run_job(cur_job->process, remain);
 
 			cur_job->process->remain_time -= remain;
@@ -166,13 +174,12 @@ int main(){
 			remain = TIME_QUANTUM;
 			cur_job = cur_job->next;
 		}else{
-			fprintf(stderr, "in 3\n");
+			fprintf(stderr, "to die ");
+			fprintf(stderr, "t:%d pid:%d n:%s run=r:%d\n", cur_time, cur_job->process->pid, cur_job->process->name, cur_job->process->remain_time);
 			run_job(cur_job->process, cur_job->process->remain_time);
-			fprintf(stderr, "finish run\n");
 			wait(NULL);
 			gettime(&(cur_job->process->ts[1]));
 			print_result(cur_job->process->pid, cur_job->process->ts);
-			fprintf(stderr, "finish output\n");
 
 			cur_time += cur_job->process->remain_time;
 			remain = TIME_QUANTUM;
@@ -180,7 +187,6 @@ int main(){
 			finish++;
 		}
 	}
-	fprintf(stderr, "finish\n");
 	free(p_arr);
 	return 0;
 }
