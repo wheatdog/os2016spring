@@ -1,3 +1,5 @@
+#include "printtime.h"
+#include "psjf.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -5,8 +7,6 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <assert.h>
-#include "printtime.h"
-#include "psjf.h"
 
 typedef unsigned int uint;
 

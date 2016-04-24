@@ -4,19 +4,21 @@
 #include "fifo.h"
 #include "sjf.h"
 #include "psjf.h"
+#include "rr.h"
 
 #define ArrayCount(Array) sizeof(Array)/sizeof((Array)[0])
 
 enum
 {
-    POLICY_FIFO,
-    POLICY_SJF,
-    POLICY_PSJF,
-    POLICY_RR,
+    POLICY_FIFO = 0,
+    POLICY_SJF = 1,
+    POLICY_PSJF = 2,
+    POLICY_RR = 3,
 };
 
 int main()
 {
+    printf("in main\n");
     char DesiredPolicy[5];
     scanf("%s", DesiredPolicy);
 
@@ -24,12 +26,14 @@ int main()
     int Type = -1;
     for (int Index = 0; Index < ArrayCount(Policies); ++Index)
     {
-        if (strcmp(Policies[Index], DesiredPolicy))
+        if (strcmp(Policies[Index], DesiredPolicy) == 0)
         {
             Type = Index;
             break;
         }
     }
+
+    printf("Policy is %d\n", Type);
 
     if (Type < 0)
     {
@@ -51,12 +55,13 @@ int main()
 
         case POLICY_PSJF:
         {
+            printf("test\n");
             PSJF();
         } break;
 
         case POLICY_RR:
         {
-            break;
+            RR();
         } break;
     }
 
