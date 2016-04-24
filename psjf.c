@@ -2,11 +2,11 @@
 #include "psjf.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <sched.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <assert.h>
 
 typedef unsigned int uint;
 
@@ -33,8 +33,9 @@ typedef struct
 /******************************************************************************/
 /* Debug Utilities for this file                                              */
 /******************************************************************************/
-//#define DEBUG
+/* #define DEBUG */
 #ifdef DEBUG
+#include <assert.h>
 #include <wdb/wd_common.h>
 
 static void
@@ -53,6 +54,7 @@ PrintRawInput(int InputCount, raw_input *InputArray)
 
 #define PrintRawInput(...)
 #define DebugPrint(...)
+#define assert(...)
 
 /******************************************************************************/
 #endif
@@ -90,50 +92,48 @@ WaitForNextProcess(int Counter)
 }
 
 static raw_input *
-GetDataFromReadyQueue(ready_queue *Queue, int Count)
+NextDataIn(ready_queue *Queue)
 {
-    return Queue->Data[Queue->Head + Count];
+    return Queue->Data[Queue->Head + Queue->ElementCount];
+}
+
+static void
+ChangePriority(pid_t Pid, int Priority)
+{
+    struct sched_param ProcessParam;
+    ProcessParam.sched_priority = Priority;
+    sched_setscheduler(Pid, SCHED_FIFO, &ProcessParam);
 }
 
 int
 PSJF()
 {
-    struct sched_param ThisProcessParam;
-    ThisProcessParam.sched_priority = 98;
-    sched_setscheduler(0, SCHED_FIFO, &ThisProcessParam);
+    ChangePriority(0, 98);
 
     int ProcessCount;
     scanf("%d", &ProcessCount);
 
     raw_input *Raw = (raw_input *)malloc(ProcessCount*sizeof(raw_input));
-
     for (int Index = 0; Index < ProcessCount; ++Index)
     {
         scanf("%s%d%d", Raw[Index].Name, &Raw[Index].ReadyTime, &Raw[Index].ExecTime);
-
         Raw[Index].Recorded = 0;
-
         pipe(Raw[Index].Pipefd);
     }
 
     qsort(Raw, ProcessCount, sizeof(raw_input), CompareByReadyTime);
     PrintRawInput(ProcessCount, Raw);
 
-    // NOTE(wheatdog): Init ReadyQueue
-
-    ready_queue ReadyQueue;
+    ready_queue ReadyQueue = {};
     ReadyQueue.Data = (raw_input **)malloc(ProcessCount*sizeof(raw_input *));
-    ReadyQueue.Head = 0;
-    ReadyQueue.ElementCount = 0;
     for (int Index = 0; Index < ProcessCount; ++Index)
     {
         ReadyQueue.Data[Index] = Raw + Index;
     }
 
     // NOTE(wheatdog): Start processing
-
     uint TimeCounter = 0;
-    int Remain = ProcessCount;
+    int UnReadyCount = ProcessCount;
     int FinishedCount = 0;
     raw_input *Running = 0;
 
@@ -141,21 +141,13 @@ PSJF()
     {
         if (!Running)
         {
-            if (Remain)
-            {
-                uint WaitTime =
-                    GetDataFromReadyQueue(&ReadyQueue, ReadyQueue.ElementCount)->ReadyTime -
-                    TimeCounter;
-                TimeCounter += WaitTime;
-                WaitForNextProcess(WaitTime);
-            }
+            uint WaitTime = NextDataIn(&ReadyQueue)->ReadyTime - TimeCounter;
+            WaitForNextProcess(WaitTime);
+            TimeCounter += WaitTime;
         }
 
-        // NOTE(wheatdog): Spawn new process
-
-        if (Remain)
+        if (UnReadyCount && (NextDataIn(&ReadyQueue)->ReadyTime == TimeCounter))
         {
-            --Remain;
             pid_t ChildPid = fork();
             if (ChildPid < 0)
             {
@@ -164,13 +156,13 @@ PSJF()
             }
             else if (ChildPid != 0)
             {
-                GetDataFromReadyQueue(&ReadyQueue, ReadyQueue.ElementCount)->Pid = ChildPid;
+                NextDataIn(&ReadyQueue)->Pid = ChildPid;
+                --UnReadyCount;
                 ++ReadyQueue.ElementCount;
             }
             else
             {
-                raw_input *NewProcess = GetDataFromReadyQueue(&ReadyQueue,
-                                                              ReadyQueue.ElementCount);
+                raw_input *NewProcess = NextDataIn(&ReadyQueue);
                 dup2(NewProcess->Pipefd[0], 0);
                 char Buffer[128];
                 snprintf(Buffer, sizeof(Buffer), "%d", NewProcess->ExecTime);
@@ -181,22 +173,16 @@ PSJF()
             }
         }
 
-        // NOTE(wheatdog): Decide who to run, if there is time gap between next
-        // process, remember to set Running = 0 after writing
-
-        // NOTE(wheatdog): Sort ReadyQueue and choose the top one
-
-        qsort(ReadyQueue.Data + ReadyQueue.Head, ReadyQueue.ElementCount,
-              sizeof(raw_input *), CompareByExecTime);
-
+        qsort(ReadyQueue.Data + ReadyQueue.Head,
+              ReadyQueue.ElementCount, sizeof(raw_input *), CompareByExecTime);
         Running = ReadyQueue.Data[ReadyQueue.Head];
 
         int NeedWait = 1;
         uint ThisExecTime = Running->ExecTime;
 
-        if (Remain)
+        if (UnReadyCount)
         {
-            uint NextReadyTime = GetDataFromReadyQueue(&ReadyQueue, ReadyQueue.ElementCount)->ReadyTime;
+            uint NextReadyTime = NextDataIn(&ReadyQueue)->ReadyTime;
             if (NextReadyTime < (TimeCounter + ThisExecTime))
             {
                 NeedWait = 0;
@@ -212,17 +198,12 @@ PSJF()
 
         DebugPrint("[%6d] %s run %d\n", TimeCounter, Running->Name, ThisExecTime);
 
+        char Buffer[128] = {};
+        snprintf(Buffer, sizeof(Buffer), "%d ", ThisExecTime);
+        write(Running->Pipefd[1], Buffer, strlen(Buffer));
+        ChangePriority(Running->Pid, 99);
         TimeCounter += ThisExecTime;
         Running->ExecTime -= ThisExecTime;
-
-        // NOTE(wheatdog): Send data to Running
-        char Buffer[128] = {};
-        snprintf(Buffer, sizeof(Buffer), "%d", ThisExecTime);
-        write(Running->Pipefd[1], Buffer, sizeof(Buffer));
-
-        struct sched_param Param;
-        Param.sched_priority = 99;
-        sched_setscheduler(Running->Pid, SCHED_FIFO, &Param);
 
         if (NeedWait)
         {
@@ -232,17 +213,22 @@ PSJF()
                 printf("wait error\n");
                 exit(0);
             }
+
             gettime(&Running->Time[1]);
+            print_result(Running->Pid, Running->Time);
+
             ++ReadyQueue.Head;
             ++FinishedCount;
             --ReadyQueue.ElementCount;
-            print_result(Running->Pid, Running->Time);
-            Running = 0;
+
+            if (!ReadyQueue.ElementCount)
+            {
+                Running = 0;
+            }
         }
     }
 
     free(ReadyQueue.Data);
     free(Raw);
-
     return 0;
 }
