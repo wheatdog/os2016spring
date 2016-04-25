@@ -18,7 +18,6 @@ enum
 
 int main()
 {
-    printf("in main\n");
     char DesiredPolicy[5];
     scanf("%s", DesiredPolicy);
 
@@ -32,8 +31,6 @@ int main()
             break;
         }
     }
-
-    printf("Policy is %d\n", Type);
 
     if (Type < 0)
     {
@@ -55,7 +52,6 @@ int main()
 
         case POLICY_PSJF:
         {
-            printf("test\n");
             PSJF();
         } break;
 
