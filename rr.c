@@ -111,10 +111,6 @@ static struct ready_list* remove_list(struct ready_list *job){
 }
 
 int RR(){
-	
-	char type[20];
-	scanf("%s", type);
-
 	struct sched_param param;
 	param.sched_priority = 98;
 	if(sched_setscheduler(0, SCHED_FIFO, &param) < 0 ){
