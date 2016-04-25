@@ -98,7 +98,7 @@ static struct ready_list* add_list(struct ready_list *job, struct p_struct *p){
 	return job;
 }
 static struct ready_list* remove_list(struct ready_list *job){
-	fprintf(stderr, "die pid:%d n:%s\n", job->process->pid, job->process->name);
+	//fprintf(stderr, "die pid:%d n:%s\n", job->process->pid, job->process->name);
 	if(job->next == job){
 		free(job);
 		return NULL;
@@ -133,15 +133,15 @@ int RR(){
 	struct ready_list* cur_job = NULL;
 	
 	while(finish < n){
-		fprintf(stderr, "f = %d %d\n", finish, n);
+		//fprintf(stderr, "f = %d %d\n", finish, n);
 		if(next < n && p_arr[next].r_time == cur_time){
 			fork_child(&(p_arr[next]));
-			fprintf(stderr, "\tt:%d fork %d %s\n", cur_time, p_arr[next].pid, p_arr[next].name);
+			//fprintf(stderr, "\tt:%d fork %d %s\n", cur_time, p_arr[next].pid, p_arr[next].name);
 			cur_job = add_list(cur_job, &p_arr[next]);
 			next++;
 		}
 		if(cur_job == NULL){
-			fprintf(stderr, "t:%d idle %d\n", cur_time, p_arr[next].r_time - cur_time);
+			//fprintf(stderr, "t:%d idle %d\n", cur_time, p_arr[next].r_time - cur_time);
 			wait_for_job(p_arr[next].r_time - cur_time);
 			cur_time = p_arr[next].r_time;
 			remain = TIME_QUANTUM;
@@ -151,8 +151,8 @@ int RR(){
 		   p_arr[next].r_time - cur_time < remain &&
 		   p_arr[next].r_time - cur_time < cur_job->process->remain_time){
 			int t = p_arr[next].r_time - cur_time;
-			fprintf(stderr, "to fork ");
-			fprintf(stderr, "t:%d pid:%d n:%s run:%d r:%d\n", cur_time, cur_job->process->pid, cur_job->process->name, t, cur_job->process->remain_time);
+			//fprintf(stderr, "to fork ");
+			//fprintf(stderr, "t:%d pid:%d n:%s run:%d r:%d\n", cur_time, cur_job->process->pid, cur_job->process->name, t, cur_job->process->remain_time);
 			run_job(cur_job->process, t);
 
 			remain -= t;
@@ -161,8 +161,8 @@ int RR(){
 			continue;
 		}
 		if(remain < cur_job->process->remain_time){
-			fprintf(stderr, "to next ");
-			fprintf(stderr, "t:%d pid:%d n:%s run:%d r:%d\n", cur_time, cur_job->process->pid, cur_job->process->name, remain, cur_job->process->remain_time);
+			//fprintf(stderr, "to next ");
+			//fprintf(stderr, "t:%d pid:%d n:%s run:%d r:%d\n", cur_time, cur_job->process->pid, cur_job->process->name, remain, cur_job->process->remain_time);
 			run_job(cur_job->process, remain);
 
 			cur_job->process->remain_time -= remain;
@@ -170,8 +170,8 @@ int RR(){
 			remain = TIME_QUANTUM;
 			cur_job = cur_job->next;
 		}else{
-			fprintf(stderr, "to die ");
-			fprintf(stderr, "t:%d pid:%d n:%s run=r:%d\n", cur_time, cur_job->process->pid, cur_job->process->name, cur_job->process->remain_time);
+			//fprintf(stderr, "to die ");
+			//fprintf(stderr, "t:%d pid:%d n:%s run=r:%d\n", cur_time, cur_job->process->pid, cur_job->process->name, cur_job->process->remain_time);
 			run_job(cur_job->process, cur_job->process->remain_time);
 			wait(NULL);
 			gettime(&(cur_job->process->ts[1]));
