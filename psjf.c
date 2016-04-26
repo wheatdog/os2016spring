@@ -105,6 +105,25 @@ ChangePriority(pid_t Pid, int Priority)
     sched_setscheduler(Pid, SCHED_FIFO, &ProcessParam);
 }
 
+static void
+SendToChild(raw_input *Running, uint ThisExecTime, uint *TimeCounter)
+{
+    DebugPrint("[%6d] %s run %d\n", *TimeCounter, Running->Name, ThisExecTime);
+
+    if (!Running->Recorded)
+    {
+        gettime(&Running->Time[0]);
+        Running->Recorded = 1;
+    }
+
+    char Buffer[128] = {};
+    snprintf(Buffer, sizeof(Buffer), "%d ", ThisExecTime);
+    write(Running->Pipefd[1], Buffer, strlen(Buffer));
+    ChangePriority(Running->Pid, 99);
+    Running->ExecTime -= ThisExecTime;
+    *TimeCounter += ThisExecTime;
+}
+
 int
 PSJF()
 {
@@ -135,78 +154,62 @@ PSJF()
     uint TimeCounter = 0;
     int UnReadyCount = ProcessCount;
     int FinishedCount = 0;
-    raw_input *Running = 0;
-
     while (FinishedCount < ProcessCount)
     {
-        if (!Running)
+        DebugPrint("U: %d\n", UnReadyCount);
+        if (UnReadyCount)
         {
-            uint WaitTime = NextDataIn(&ReadyQueue)->ReadyTime - TimeCounter;
-            WaitForNextProcess(WaitTime);
-            TimeCounter += WaitTime;
-        }
-
-        if (UnReadyCount && (NextDataIn(&ReadyQueue)->ReadyTime == TimeCounter))
-        {
-            pid_t ChildPid = fork();
-            if (ChildPid < 0)
+            if (NextDataIn(&ReadyQueue)->ReadyTime == TimeCounter)
             {
-                fprintf(stderr, "fork error\n");
-                exit(0);
-            }
-            else if (ChildPid != 0)
-            {
-                NextDataIn(&ReadyQueue)->Pid = ChildPid;
-                --UnReadyCount;
-                ++ReadyQueue.ElementCount;
-            }
-            else
-            {
-                raw_input *NewProcess = NextDataIn(&ReadyQueue);
-                dup2(NewProcess->Pipefd[0], 0);
-                char Buffer[128];
-                snprintf(Buffer, sizeof(Buffer), "%d", NewProcess->ExecTime);
-                if (execl("./child", "./child", NewProcess->Name, Buffer, 0) < 0)
+                pid_t ChildPid = fork();
+                if (ChildPid < 0)
                 {
-                    fprintf(stderr, "exec error\n");
+                    fprintf(stderr, "fork error\n");
+                    exit(0);
                 }
+                else if (ChildPid != 0)
+                {
+                    NextDataIn(&ReadyQueue)->Pid = ChildPid;
+                    --UnReadyCount;
+                    ++ReadyQueue.ElementCount;
+                }
+                else
+                {
+                    raw_input *NewProcess = NextDataIn(&ReadyQueue);
+                    dup2(NewProcess->Pipefd[0], 0);
+                    char Buffer[128];
+                    snprintf(Buffer, sizeof(Buffer), "%d", NewProcess->ExecTime);
+                    if (execl("./child", "./child", NewProcess->Name, Buffer, 0) < 0)
+                    {
+                        fprintf(stderr, "exec error\n");
+                    }
+                }
+            }
+            else if (!ReadyQueue.ElementCount)
+            {
+                uint WaitTime = NextDataIn(&ReadyQueue)->ReadyTime - TimeCounter;
+                WaitForNextProcess(WaitTime);
+                TimeCounter += WaitTime;
+                continue;
             }
         }
 
         qsort(ReadyQueue.Data + ReadyQueue.Head,
               ReadyQueue.ElementCount, sizeof(raw_input *), CompareByExecTime);
-        Running = ReadyQueue.Data[ReadyQueue.Head];
+        raw_input *Running = ReadyQueue.Data[ReadyQueue.Head];
 
-        int NeedWait = 1;
+        DebugPrint("Running: %s\n", Running->Name);
+
         uint ThisExecTime = Running->ExecTime;
-
-        if (UnReadyCount)
+        if (UnReadyCount &&
+            NextDataIn(&ReadyQueue)->ReadyTime < (TimeCounter + ThisExecTime))
         {
-            uint NextReadyTime = NextDataIn(&ReadyQueue)->ReadyTime;
-            if (NextReadyTime < (TimeCounter + ThisExecTime))
-            {
-                NeedWait = 0;
-                ThisExecTime = NextReadyTime - TimeCounter;
-            }
+            ThisExecTime = NextDataIn(&ReadyQueue)->ReadyTime - TimeCounter;
+            SendToChild(Running, ThisExecTime, &TimeCounter);
         }
-
-        if (!Running->Recorded)
+        else
         {
-            gettime(&Running->Time[0]);
-            Running->Recorded = 1;
-        }
-
-        DebugPrint("[%6d] %s run %d\n", TimeCounter, Running->Name, ThisExecTime);
-
-        char Buffer[128] = {};
-        snprintf(Buffer, sizeof(Buffer), "%d ", ThisExecTime);
-        write(Running->Pipefd[1], Buffer, strlen(Buffer));
-        ChangePriority(Running->Pid, 99);
-        TimeCounter += ThisExecTime;
-        Running->ExecTime -= ThisExecTime;
-
-        if (NeedWait)
-        {
+            SendToChild(Running, ThisExecTime, &TimeCounter);
             int Status;
             if (waitpid(Running->Pid, &Status, 0) < 0)
             {
@@ -218,13 +221,8 @@ PSJF()
             print_result(Running->Pid, Running->Time);
 
             ++ReadyQueue.Head;
-            ++FinishedCount;
             --ReadyQueue.ElementCount;
-
-            if (!ReadyQueue.ElementCount)
-            {
-                Running = 0;
-            }
+            ++FinishedCount;
         }
     }
 
