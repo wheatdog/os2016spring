@@ -11,6 +11,11 @@
 \begin{CJK}{UTF8}{bkai}
 \maketitle
 
+\section{Design of Child}
+schedule policy設為SCHED\_FIFO主程式main一開始將自己的priority設為98。
+main要叫一個child跑時，會透過pipe告訴child要跑幾個time unit，再將此child的priority設為99
+child跑了指定的時間後 會將自己的priority設為97 把主控權還給main。
+
 \section{FIFO}
 \subsection{Design}
 
@@ -135,8 +140,59 @@ P3 3196
 \end{enumerate}
 
 \subsection{Comparison}
-Basicly, the result is as same as prediction.
+Basicly, the result is as same as the prediction. Sometimes, the error will be up
+to 0.2 second. The reason might be that operation system did some content switch
+to run other applications.
 
+\section{RR}
+
+\subsection{Design}
+一開始用\texttt{array}存下所有\texttt{process}資訊並照\texttt{ready time}排序。
+\texttt{ready queue}用\texttt{circular linked list}實作，指標變數\texttt{cur\_job}指著\texttt{circular linked list}中正要執行的\texttt{process}(也就是\texttt{ready queue}的第一個\texttt{process}。)
+\texttt{cur\_job->next}是\texttt{ready queue}中下一個要執行的\texttt{process}，\texttt{cur\_job->last}是\texttt{ready queue}中最後一個\texttt{process}。
+當目前的\texttt{process}的時間用完，要換下一個時，只要\texttt{cur\_job = cur\_job->next}，目前的\texttt{process}就排到\texttt{ready queue}中的最後。
+當新的\texttt{process ready}，就要排進\texttt{ready queue}的最後，也就是將它塞進\texttt{cur\_job->last}。
+
+\texttt{while loop}每個\texttt{iteration}主要流程:
+一開始會檢查是否有\texttt{process ready}，有就\texttt{fork child}。
+接著如果\texttt{ready queue}是空的\texttt{(cur\_job == NULL)}: 
+  就計算要等多久下個\texttt{process}會\texttt{ready}，等完後進入下一個\texttt{iteration}。
+否則:
+  決定這次\texttt{cur\_job}要跑多久，跑完後做對應的操作，進入下一個\texttt{iteration}。
+所有\texttt{process}執行完畢後，跳出\texttt{while loop}，程式結束。
+
+每個\texttt{iteration}中，決定\texttt{cur\_job}要跑多久的判斷和對應的操作:
+比較
+\begin{enumerate}
+\item \texttt{cur\_job}這次\texttt{time quantum}剩餘的時間\texttt{(remain)}
+\item 下個\texttt{process ready}的時間\texttt{(p\_arr[next].r\_time - cur\_time)}
+\item \texttt{cur\_job} 剩餘的執行時間\texttt{(cur\_job->process->remain\_time)}
+\end{enumerate}
+
+時間最短的就是這個\texttt{iteration}中\texttt{cur\_job}要跑的時間
+如果選出來的時間是1，跑完後\texttt{cur\_job}要換下個\texttt{process}(也就是\texttt{cur\_job->next})
+如果是2，跑完後進入下個\texttt{iteration}就會\texttt{fork child}
+如果是3，完後\texttt{cur\_job}要換下個\texttt{process}且移除目前跑完的\texttt{process}
+
+\subsection{Result}
+\begin{verbatim}
+P3 2653
+P1 2651
+P2 2652
+P6 2656
+P5 2655
+P4 2654
+
+[Project1] 2653 1461682248.715317957 1461682276.941976396
+[Project1] 2651 1461682242.580521729 1461682278.953463652
+[Project1] 2652 1461682245.679939291 1461682280.969540910
+[Project1] 2656 1461682256.829051535 1461682297.064796458
+[Project1] 2655 1461682254.806290238 1461682301.062410827
+[Project1] 2654 1461682252.791221494 1461682303.065176403
+\end{verbatim}
+\subsection{Comparison}
+結果大致符合預期，但相距10000 time unit左右可以觀察到0.2秒的誤差， 可能是main要處理
+children的context swith 時產生的overhead所導致的。
 \section{Contribution of Each Member}
 \begin{description}
 \item[戴佑全:] system call, RR
