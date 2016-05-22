@@ -1,0 +1,206 @@
+
+\documentclass[12pt, a4paper]{article}
+\usepackage{xeCJK}
+%\setCJKmainfont{WenQuanYi Micro Hei Light}
+\setCJKmainfont{Noto Sans CJK TC Light}
+\XeTeXlinebreaklocale "zh"
+\XeTeXlinebreakskip = 0pt plus 1pt
+\usepackage{amsmath}
+\usepackage[top=1in, bottom=1in, left=1in, right=1in]{geometry}
+
+\title{Report of Operating System Project 1}
+\author{戴佑全\\黃子賢\\劉彥廷}
+
+\begin{document}
+\maketitle
+
+\section{Design of Child}
+schedule policy設為SCHED\_FIFO主程式main一開始將自己的priority設為98。
+main要叫一個child跑時，會透過pipe告訴child要跑幾個time unit，再將此child的priority設為99
+child跑了指定的時間後 會將自己的priority設為97 把主控權還給main。
+
+\section{FIFO}
+\subsection{Design}
+
+資料結構 : 一開始打算以link list來當作ready queue，但後來想到有給process的數量再
+加上並沒有用到link list可以在中間隨意插入的優點，所以改用array當作ready queue，
+並有2個變數紀錄現在執行的child與下一個要被fork的child。
+
+FIFO是一個很直觀的 scheduler，因為只有一顆CPU，所以我的作法是parent將
+child要跑多少時間跟child說，之後將child的priority提到最高，而 parent
+會重新拿到CPU有2種情況，
+
+\begin{enumerate}
+  \item 因為可能中途要fork其他的child，所以child需要在那時將CPU還給parent，這裡 使用的方式是將parent的priority設為98，換child時將child提成99，當child要回給 parent時將自己設為97，就能完成context switch了，而因為此時child還沒執行完，只是暫時換parent，所以在parent中現在執行的變數不變，所以fork完之後會接續做。
+  \item 當child執行完後，輪到parent時，將parent中現在執行的變數增加並wait child 以防有zombie。 所以parent的流程是，先檢查是否在idle(現在執行的child = 下一個要被 fork的child)，如果是則做for loop直到下一個child被出來，再來是檢查需不需要fork， 因為並非每次輪到parent時都要fork，再來是將child需要跑的時間告訴child，時間為 min(下一個要被fork的child的 ready time, 現在執行的child的execution time)。
+\end{enumerate}
+
+\subsection{Result}
+
+\begin{enumerate}
+\item \texttt{FIFO\_2.txt}
+\begin{verbatim}
+P1 3515
+P2 3516
+P3 3517
+P4 3518
+
+[Project1] 3515 1461500526.987120466 1461500691.939705154
+[Project1] 3516 1461500691.939706083 1461500702.258074897
+[Project1] 3517 1461500702.258075945 1461500704.295347989
+[Project1] 3518 1461500704.295349110 1461500706.332647694
+\end{verbatim}
+\end{enumerate}
+
+\subsection{Comparison}
+與理想中的差不多，但是在dmesg稍微有點誤差，原因大概是parent 與child之間context
+switch造成的，除了priority有保護順序外，因為FIFO並不考慮preemptive，所以只有上一
+個做完下一個才會做，再加上每次child死亡都會wait所以這也會保護到答案順序的正確。
+
+\section{SJF}
+
+\subsection{Design}
+設計跟FIFO差別不大，唯一的差別是在fork完之後要做一次sort，有2種情況，
+\begin{enumerate}
+\item 現在有child正在執行中，那麼只sort除了這支child的其他已被fork出來的child。
+\item 現在沒有child正在執行中，那麼sort所有已被fork出來的child。除此之外剩下皆與FIFO相同。
+\end{enumerate}
+
+\subsection{Result}
+\begin{enumerate}
+\item \texttt{SJF\_3.txt}
+\begin{verbatim}
+P1 2730
+P4 2733
+P5 2734
+P6 2735
+P7 2736
+P2 2731
+P3 2732
+P8 2737
+
+[Project1] 2730 1461506590.620579045 1461506597.056205686
+[Project1] 2733 1461506597.056208329 1461506597.077219594
+[Project1] 2734 1461506597.077221749 1461506597.098146308
+[Project1] 2735 1461506597.098147463 1461506605.898578152
+[Project1] 2736 1461506605.898581016 1461506614.651940234
+[Project1] 2731 1461506614.651943364 1461506625.677029525
+[Project1] 2732 1461506625.677032127 1461506641.046276916
+[Project1] 2737 1461506641.046279188 1461506660.897146737
+\end{verbatim}
+\end{enumerate}
+
+\subsection{Comparison}
+SJF與FIFO很像，都是不preemptive，所以同FIFO，順序並不太會錯誤，在來就是因為要頻繁的sort所以在時間誤差方面會比較大。
+
+\section{PSJF}
+\subsection{Design}
+\begin{enumerate}
+\item Data structure: A poor man's priority queue, implemented by an array and
+  qsort. The smaller one's exction time is, the higher its priority is.
+  \begin{enumerate}
+  \item Insert: $O(n \log n)$
+  \item Pull: $O(1)$
+  \end{enumerate}
+\item Main while loop:
+\begin{verbatim}
+while(there exists non-finished processes) do
+  if(clock is the next ready process's ready time) do
+    fork this process
+    insert this process to priority queue
+  else
+    wait until next ready process 
+    continue
+  end
+
+  pull the process from the priority queue
+  if(next ready process's ready time is smaller than this process's finish time) do
+    this process can only run (next ready process's ready time - clock)
+  else
+    this process can run til it finishs
+    wait this child, and mark this process as finished
+  end
+end
+\end{verbatim}
+\end{enumerate}
+
+\subsection{Result}
+\begin{enumerate}
+\item \texttt{PSJF\_2.txt}
+\begin{verbatim}
+P2 3195
+P1 3194
+P4 3197
+P5 3198
+P3 3196
+
+[Project1] 3195 1461556744.671319569 1461556746.818243380
+[Project1] 3194 1461556742.541598901 1461556751.107887218
+[Project1] 3197 1461556753.257726208 1461556757.596873203
+[Project1] 3198 1461556757.596918243 1461556759.755637682
+[Project1] 3196 1461556751.107896674 1461556766.169973474
+\end{verbatim}
+\end{enumerate}
+
+\subsection{Comparison}
+Basicly, the result is as same as the prediction. Sometimes, the error will be up
+to 0.2 second. The reason might be that operation system did some content switch
+to run other applications.
+
+\section{RR}
+
+\subsection{Design}
+一開始  用\texttt{array}存下所有\texttt{process}資訊並照\texttt{ready time}排序。
+\texttt{ready queue}用\texttt{circular linked list}實作，指標變數\texttt{cur\_job}指著\texttt{circular linked list}中正要執行的\texttt{process}(也就是\texttt{ready queue}的第一個\texttt{process}。)
+\texttt{cur\_job->next}是\texttt{ready queue}中下一個要執行的\texttt{process}，\texttt{cur\_job->last}是\texttt{ready queue}中最後一個\texttt{process}。
+當目前的\texttt{process}的時間用完，要換下一個時，只要\texttt{cur\_job = cur\_job->next}，目前的\texttt{process}就排到\texttt{ready queue}中的最後。
+當新的\texttt{process ready}，就要排進\texttt{ready queue}的最後，也就是將它塞進\texttt{cur\_job->last}。
+
+\texttt{while loop}每個\texttt{iteration}主要流程:
+一開始會檢查是否有\texttt{process ready}，有就\texttt{fork child}。
+接著如果\texttt{ready queue}是空的\texttt{(cur\_job == NULL)}: 
+  就計算要等多久下個\texttt{process}會\texttt{ready}，等完後進入下一個\texttt{iteration}。
+否則:
+  決定這次\texttt{cur\_job}要跑多久，跑完後做對應的操作，進入下一個\texttt{iteration}。
+所有\texttt{process}執行完畢後，跳出\texttt{while loop}，程式結束。
+
+每個\texttt{iteration}中，決定\texttt{cur\_job}要跑多久的判斷和對應的操作:
+比較
+\begin{enumerate}
+\item \texttt{cur\_job}這次\texttt{time quantum}剩餘的時間\texttt{(remain)}
+\item 下個\texttt{process ready}的時間\texttt{(p\_arr[next].r\_time - cur\_time)}
+\item \texttt{cur\_job} 剩餘的執行時間\texttt{(cur\_job->process->remain\_time)}
+\end{enumerate}
+
+時間最短的就是這個\texttt{iteration}中\texttt{cur\_job}要跑的時間
+如果選出來的時間是1，跑完後\texttt{cur\_job}要換下個\texttt{process}(也就是\texttt{cur\_job->next})
+如果是2，跑完後進入下個\texttt{iteration}就會\texttt{fork child}
+如果是3，完後\texttt{cur\_job}要換下個\texttt{process}且移除目前跑完的\texttt{process}
+
+\subsection{Result}
+\begin{verbatim}
+P3 2653
+P1 2651
+P2 2652
+P6 2656
+P5 2655
+P4 2654
+
+[Project1] 2653 1461682248.715317957 1461682276.941976396
+[Project1] 2651 1461682242.580521729 1461682278.953463652
+[Project1] 2652 1461682245.679939291 1461682280.969540910
+[Project1] 2656 1461682256.829051535 1461682297.064796458
+[Project1] 2655 1461682254.806290238 1461682301.062410827
+[Project1] 2654 1461682252.791221494 1461682303.065176403
+\end{verbatim}
+\subsection{Comparison}
+結果大致符合預期，但相距10000 time unit左右可以觀察到0.2秒的誤差， 可能是main要處理
+children的context swith 時產生的overhead所導致的。
+\section{Contribution of Each Member}
+\begin{description}
+\item[戴佑全:] system call, RR
+\item[黃子賢:] child, FIFO, SJF
+\item[劉彥廷:] main, PSJF
+\end{description}
+
+\end{document}​
