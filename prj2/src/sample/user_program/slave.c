@@ -74,22 +74,19 @@ int main (int argc, char* argv[])
 					return 1;
 				}
 
+printf("%d, %d\n", len, offset);
 				if (len == 0) break;
 
-printf("1\n");
-
-				file_address = mmap(NULL, len, 0, MAP_SHARED, file_fd, offset);
+                                lseek(file_fd, len - 1, SEEK_END);
+				write(file_fd, "0", 1);
+				file_address = mmap(NULL, len, PROT_READ|PROT_WRITE, MAP_SHARED, file_fd, offset);
 				if (file_address == MAP_FAILED){
    					perror("mmap operation failed or finish!");
   					break;
    				}
 
-printf("%p, %p, %d\n", kernel_address, file_address, len);
-printf("%s\n", kernel_address);
-sprintf(file_address, "mem\n");
 				memcpy(file_address, kernel_address, len);
 
-printf("1\n");
 				munmap(file_address, len);
 				offset += len;
 				file_size += len;

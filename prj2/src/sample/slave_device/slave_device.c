@@ -31,6 +31,7 @@
 
 
 #define BUF_SIZE 512
+#define PAGE_SIZE 4096
 
 
 
@@ -172,6 +173,7 @@ int slave_open(struct inode *inode, struct file *filp)
     	filp->private_data = info;
 	return 0;
 }
+
 static long slave_ioctl(struct file *file, unsigned int ioctl_num, unsigned long ioctl_param)
 {
 	long ret = -EINVAL;
@@ -223,7 +225,7 @@ static long slave_ioctl(struct file *file, unsigned int ioctl_num, unsigned long
 			ret = 0;
 			break;
 		case slave_IOCTL_MMAP:
-			ret = krecv(sockfd_cli, ((struct mmap_info *)(file->private_data))->data, BUF_SIZE, 0);
+			ret = krecv(sockfd_cli, ((struct mmap_info *)(file->private_data))->data, PAGE_SIZE, 0);
 			break;
 
 		case slave_IOCTL_EXIT:
