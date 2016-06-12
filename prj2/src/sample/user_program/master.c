@@ -68,8 +68,23 @@ int main (int argc, char* argv[])
 		case 'm':
 			do
 			{
-				memcpy();
-			}
+				char* address = NULL;
+				address = mmap(NULL, PAGE_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED, dev_fd, 0);
+				if (address == MAP_FAILED){
+   					perror("mmap operation failed");
+  					return -1;
+   				}
+				ret = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, file_fd, 0);
+				if (ret == MAP_FAILED){
+   					perror("mmap operation failed or finish!");
+  					break;
+   				}
+				memcpy(address, ret, PAGE_SIZE);
+				if(ioctl(dev_fd, 0x12345678) == -1) { //0x12345678 : sent data 
+					perror("ioclt server create socket error\n");
+					return 1;
+				}
+			}while(1);
 			break;
 	}
 
