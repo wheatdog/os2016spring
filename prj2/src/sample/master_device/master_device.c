@@ -53,6 +53,8 @@ int master_close(struct inode *inode, struct file *filp);
 int master_open(struct inode *inode, struct file *filp);
 static long master_ioctl(struct file *file, unsigned int ioctl_num, unsigned long ioctl_param);
 static ssize_t send_msg(struct file *file, const char __user *buf, size_t count, loff_t *data);//use when user is writing to this device
+
+//mmap function
 static int mmap_mmap(struct file *filp, struct vm_area_struct *vma);
 void mmap_open(struct vm_area_struct *vma);
 void mmap_close(struct vm_area_struct *vma);
