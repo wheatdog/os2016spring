@@ -33,8 +33,7 @@
 #define master_IOCTL_MMAP 0x12345678
 #define master_IOCTL_EXIT 0x12345679
 #define BUF_SIZE 512
-#define PAGE_SIZE 4096
-
+#define MMT_BUF_SIZE 8192
 typedef struct socket * ksocket_t;
 static char *buffer;
 struct dentry  *file1;//debug file
@@ -54,8 +53,6 @@ int master_close(struct inode *inode, struct file *filp);
 int master_open(struct inode *inode, struct file *filp);
 static long master_ioctl(struct file *file, unsigned int ioctl_num, unsigned long ioctl_param);
 static ssize_t send_msg(struct file *file, const char __user *buf, size_t count, loff_t *data);//use when user is writing to this device
-
-//mmap function
 static int mmap_mmap(struct file *filp, struct vm_area_struct *vma);
 void mmap_open(struct vm_area_struct *vma);
 void mmap_close(struct vm_area_struct *vma);
@@ -66,7 +63,7 @@ static struct sockaddr_in addr_srv;//address for master
 static struct sockaddr_in addr_cli;//address for slave
 static mm_segment_t old_fs;
 static int addr_len;
-static  struct mmap_info *mmap_msg; // pointer to the mapped data in this device
+//static  struct mmap_info *mmap_msg; // pointer to the mapped data in this device
 
 struct mmap_info
 {
@@ -168,7 +165,7 @@ int master_close(struct inode *inode, struct file *filp)
 
 int master_open(struct inode *inode, struct file *filp)
 {
-	struct mmap_info *info = kmalloc(sizeof(struct mmap_info), GFP_KERNEL);    
+	struct mmap_info *info = kmalloc(sizeof(struct mmap_info), GFP_KERNEL); 
 	info->data = (char *)get_zeroed_page(GFP_KERNEL);
     	filp->private_data = info;
 	return 0;
@@ -211,6 +208,7 @@ static long master_ioctl(struct file *file, unsigned int ioctl_num, unsigned lon
 	long ret = -EINVAL;
 	size_t data_size = 0, offset = 0;
 	char *tmp;
+	struct mmap_info *info;
 	pgd_t *pgd;
 	pud_t *pud;
 	pmd_t *pmd;
@@ -231,8 +229,9 @@ static long master_ioctl(struct file *file, unsigned int ioctl_num, unsigned lon
 			kfree(tmp);
 			ret = 0;
 			break;
-		case master_IOCTL_MMAP:
-			ksend(sockfd_cli, ((struct mmap_info *)(file->private_data))->data, ioctl_param, 0);
+		case master_IOCTL_MMAP:	
+			info = file->private_data;
+			ksend(sockfd_cli, info->data, ioctl_param, 0);
 			ret = 0;
 			break;
 		case master_IOCTL_EXIT:
@@ -275,6 +274,7 @@ static ssize_t send_msg(struct file *file, const char __user *buf, size_t count,
 	ksend(sockfd_cli, msg, count, 0);
 
 	return count;
+
 }
 
 

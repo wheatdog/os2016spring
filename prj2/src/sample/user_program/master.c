@@ -23,7 +23,7 @@ int main (int argc, char* argv[])
 	struct timeval start;
 	struct timeval end;
 	double trans_time; //calulate the time between the device is opened and it is closed
-	char *dev_addr = NULL, *file_addr = NULL;
+	char *file_address = NULL, *kernel_address = NULL;
 
 
 
@@ -67,26 +67,28 @@ int main (int argc, char* argv[])
 			}while(ret > 0);
 			break;
 		case 'm':
+			kernel_address = mmap(NULL, PAGE_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED, dev_fd, 0);
+			if (kernel_address == MAP_FAILED){
+				perror("mmap operation failed");
+				return -1;
+			}
 			do
 			{
 				size = (remain < PAGE_SIZE)? remain:PAGE_SIZE;
-				dev_addr = mmap(NULL, size, PROT_READ|PROT_WRITE, MAP_SHARED, dev_fd, 0);
-				if (dev_addr == MAP_FAILED){
-   					perror("mmap operation failed");
-  					return -1;
-   				}
-				file_addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, file_fd, offset);
-				if (file_addr == MAP_FAILED){
-   					perror("mmap operation failed or finish!");
-  					break;
-   				}
-				memcpy(dev_addr, file_addr, size);
-				if(ioctl(dev_fd, 0x12345678, size) == -1) { //0x12345678 : sent data 
-					perror("ioclt server create socket error\n");
-					return 1;
-				}
+				file_address = mmap(NULL, size, PROT_READ|PROT_WRITE, MAP_SHARED, file_fd, offset);
 				offset += size;
 				remain -= size;
+				if (file_address == MAP_FAILED){
+        				perror("mmap operation failed");
+        				return -1;
+    				}
+				memcpy(kernel_address, file_address, size);
+				if(ioctl(dev_fd, 0x12345678, size) == -1) //0x12345678 : mmap send message
+				{
+					perror("mmap send message error\n");
+					return 1;
+				}
+				munmap(file_address, size);
 			}while(remain > 0);
 			break;
 	}
