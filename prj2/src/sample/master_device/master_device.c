@@ -153,50 +153,52 @@ static void __exit master_exit(void)
 	set_fs(old_fs);
 	printk(KERN_INFO "master exited!\n");
 	debugfs_remove(file1);
+	kfree(buffer);
 }
 
 int master_close(struct inode *inode, struct file *filp)
 {
-	mmap_msg = filp->private_data;
+	struct mmap_info *info = filp->private_data;
      
-   	free_page((unsigned long)mmap_msg->data);
-   	kfree(mmap_msg);
+   	free_page((unsigned long)info->data);
+   	kfree(info);
     	filp->private_data = NULL;
 	return 0;
 }
 
 int master_open(struct inode *inode, struct file *filp)
 {
-	mmap_msg = kmalloc(sizeof(struct mmap_info), GFP_KERNEL);    
-	mmap_msg->data = (char *)get_zeroed_page(GFP_KERNEL);
-    	filp->private_data = mmap_msg;
+	struct mmap_info *info = kmalloc(sizeof(struct mmap_info), GFP_KERNEL);    
+	info->data = (char *)get_zeroed_page(GFP_KERNEL);
+    	filp->private_data = info;
 	return 0;
 }
  
 void mmap_open(struct vm_area_struct *vma)
 {
-    mmap_msg = (struct mmap_info *)vma->vm_private_data;
-    mmap_msg->reference++;
+    struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
+    info->reference++;
 }
  
 void mmap_close(struct vm_area_struct *vma)
 {
-    mmap_msg = (struct mmap_info *)vma->vm_private_data;
-    mmap_msg->reference--;
+    struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
+    info->reference--;
 }
  
 static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 {
-    struct page *page;   
+    struct page *page;
+    struct mmap_info *info;    
      
-    mmap_msg = (struct mmap_info *)vma->vm_private_data;
-    if (!mmap_msg->data)
+    info = (struct mmap_info *)vma->vm_private_data;
+    if (!info->data)
     {
         printk("No data\n");
         return 0;    
     }
      
-    page = virt_to_page(mmap_msg->data);    
+    page = virt_to_page(info->data);    
      
     get_page(page);
     vmf->page = page;            
@@ -230,7 +232,8 @@ static long master_ioctl(struct file *file, unsigned int ioctl_num, unsigned lon
 			ret = 0;
 			break;
 		case master_IOCTL_MMAP:
-				ksend(sockfd_cli, mmap_msg->data, PAGE_SIZE, 0);
+			ksend(sockfd_cli, ((struct mmap_info *)(file->private_data))->data, ioctl_param, 0);
+			ret = 0;
 			break;
 		case master_IOCTL_EXIT:
 			if(kclose(sockfd_cli) == -1)
