@@ -55,9 +55,17 @@ int slave_open(struct inode *inode, struct file *filp);
 static long slave_ioctl(struct file *file, unsigned int ioctl_num, unsigned long ioctl_param);
 int receive_msg(struct file *filp, char *buf, size_t count, loff_t *offp );
 
+static int mmap_mmap(struct file *filp, struct vm_area_struct *vma);
+
 static mm_segment_t old_fs;
 static ksocket_t sockfd_cli;//socket to the master server
 static struct sockaddr_in addr_srv; //address of the master server
+
+struct mmap_info
+{
+    char *data;            
+    int reference;      
+};
 
 //file operations
 static struct file_operations slave_fops = {
@@ -65,7 +73,8 @@ static struct file_operations slave_fops = {
 	.unlocked_ioctl = slave_ioctl,
 	.open = slave_open,
 	.read = receive_msg,
-	.release = slave_close
+	.release = slave_close,
+	.mmap = mmap_mmap,
 };
 
 //device info
@@ -74,6 +83,53 @@ static struct miscdevice slave_dev = {
 	.name = "slave_device",
 	.fops = &slave_fops
 };
+
+void mmap_open(struct vm_area_struct *vma)
+{
+    struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
+    info->reference++;
+}
+ 
+void mmap_close(struct vm_area_struct *vma)
+{
+    struct mmap_info *info = (struct mmap_info *)vma->vm_private_data;
+    info->reference--;
+}
+ 
+static int mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
+{
+    struct page *page;
+    struct mmap_info *info;    
+     
+    info = (struct mmap_info *)vma->vm_private_data;
+    if (!info->data)
+    {
+        printk("No data\n");
+        return 0;    
+    }
+     
+    page = virt_to_page(info->data);    
+     
+    get_page(page);
+    vmf->page = page;            
+     
+    return 0;
+}
+
+static struct vm_operations_struct simple_remap_vm_ops = {
+    	.open = mmap_open,
+    	.close = mmap_close,
+	.fault = mmap_fault,
+};
+
+static int mmap_mmap(struct file *filp, struct vm_area_struct *vma)
+{
+    vma->vm_ops = &simple_remap_vm_ops;
+    vma->vm_flags |= VM_RESERVED;    
+    vma->vm_private_data = filp->private_data;
+    mmap_open(vma);
+    return 0;
+}
 
 static int __init slave_init(void)
 {
@@ -101,11 +157,19 @@ static void __exit slave_exit(void)
 
 int slave_close(struct inode *inode, struct file *filp)
 {
+	struct mmap_info *info = filp->private_data;
+     
+   	free_page((unsigned long)info->data);
+   	kfree(info);
+    	filp->private_data = NULL;
 	return 0;
 }
 
 int slave_open(struct inode *inode, struct file *filp)
 {
+	struct mmap_info *info = kmalloc(sizeof(struct mmap_info), GFP_KERNEL); 
+	info->data = (char *)get_zeroed_page(GFP_KERNEL);
+    	filp->private_data = info;
 	return 0;
 }
 static long slave_ioctl(struct file *file, unsigned int ioctl_num, unsigned long ioctl_param)
@@ -159,7 +223,7 @@ static long slave_ioctl(struct file *file, unsigned int ioctl_num, unsigned long
 			ret = 0;
 			break;
 		case slave_IOCTL_MMAP:
-
+			ret = krecv(sockfd_cli, ((struct mmap_info *)(file->private_data))->data, BUF_SIZE, 0);
 			break;
 
 		case slave_IOCTL_EXIT:

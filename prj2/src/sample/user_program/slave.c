@@ -14,6 +14,7 @@
 int main (int argc, char* argv[])
 {
 	char buf[BUF_SIZE];
+	int offset = 0;
 	int i, dev_fd, file_fd;// the fd for the device and the fd for the input file
 	size_t ret, file_size = 0, data_size = -1;
 	char file_name[50];
@@ -23,7 +24,6 @@ int main (int argc, char* argv[])
 	struct timeval end;
 	double trans_time; //calulate the time between the device is opened and it is closed
 	char *kernel_address, *file_address;
-
 
 	strcpy(file_name, argv[1]);
 	strcpy(method, argv[2]);
@@ -48,6 +48,7 @@ int main (int argc, char* argv[])
 	}
 
 
+
 	switch(method[0])
 	{
 		case 'f'://fcntl : read()/write()
@@ -58,6 +59,42 @@ int main (int argc, char* argv[])
 				file_size += ret;
 			}while(ret > 0);
 			break;
+		case 'm':
+			kernel_address = mmap(NULL, PAGE_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED, dev_fd, 0);
+			if (kernel_address == MAP_FAILED){
+				perror("mmap operation failed");
+				return -1;
+			}
+
+			do
+			{
+				int len = ioctl(dev_fd, 0x12345678);
+				if(len == -1) { //0x12345678 : sent data 
+					perror("ioclt server krecive\n");
+					return 1;
+				}
+
+				if (len == 0) break;
+
+printf("1\n");
+
+				file_address = mmap(NULL, len, 0, MAP_SHARED, file_fd, offset);
+				if (file_address == MAP_FAILED){
+   					perror("mmap operation failed or finish!");
+  					break;
+   				}
+
+printf("%p, %p, %d\n", kernel_address, file_address, len);
+printf("%s\n", kernel_address);
+sprintf(file_address, "mem\n");
+				memcpy(file_address, kernel_address, len);
+
+printf("1\n");
+				munmap(file_address, len);
+				offset += len;
+				file_size += len;
+			}while(1);
+			break;
 	}
 
 
@@ -67,9 +104,10 @@ int main (int argc, char* argv[])
 		perror("ioclt client exits error\n");
 		return 1;
 	}
+
 	gettimeofday(&end, NULL);
 	trans_time = (end.tv_sec - start.tv_sec)*1000 + (end.tv_usec - start.tv_usec)*0.0001;
-	printf("Transmission time: %lf ms, File size: %d bytes\n", trans_time, file_size / 8);
+	printf("Transmission time: %lf ms, File size: %d bytes\n", trans_time, file_size);
 
 
 	close(file_fd);
