@@ -67,24 +67,26 @@ int main (int argc, char* argv[])
 			break;
 		case 'm':
 			do
-			{
-				char* address = NULL;
-				address = mmap(NULL, PAGE_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED, dev_fd, 0);
-				if (address == MAP_FAILED){
-   					perror("mmap operation failed");
-  					return -1;
-   				}
-				ret = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, file_fd, 0);
-				if (ret == MAP_FAILED){
-   					perror("mmap operation failed or finish!");
-  					break;
-   				}
-				memcpy(address, ret, PAGE_SIZE);
-				if(ioctl(dev_fd, 0x12345678) == -1) { //0x12345678 : sent data 
-					perror("ioclt server create socket error\n");
-					return 1;
-				}
-			}while(1);
+			{	
+				int size = (file_size > (PAGE_SIZE + offset))? PAGE_SIZE : file_size - offset;
+				kernel_address = mmap(NULL, PAGE_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED, dev_fd, 0);
+    				if (kernel_address == MAP_FAILED){
+        				perror("mmap operation failed");
+        				return -1;
+    				}
+				file_address = mmap(NULL, size, PROT_READ|PROT_WRITE, MAP_SHARED, file_fd, offset);
+				offset += size;
+				if (file_address == MAP_FAILED){
+        				perror("mmap operation failed");
+        				return -1;
+    				}
+				memcpy(kernel_address, file_address, size);
+				if(ioctl(dev_fd, 0x12345678, size) == -1) //0x12345678 : mmap send message
+	{
+		perror("mmap send message error\n");
+		return 1;
+	}
+			}while(offset < file_size);
 			break;
 	}
 
