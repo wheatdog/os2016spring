@@ -30,7 +30,6 @@
 #define slave_IOCTL_EXIT 0x12345679
 
 
-#define BUF_SIZE 512
 #define PAGE_SIZE 4096
 
 
@@ -181,7 +180,7 @@ static long slave_ioctl(struct file *file, unsigned int ioctl_num, unsigned long
 	int addr_len ;
 	unsigned int i;
 	size_t len, data_size = 0;
-	char *tmp, ip[20], buf[BUF_SIZE];
+	char *tmp, ip[20], buf[PAGE_SIZE];
 	struct page *p_print;
 	unsigned char *px;
 
@@ -254,7 +253,7 @@ static long slave_ioctl(struct file *file, unsigned int ioctl_num, unsigned long
 int receive_msg(struct file *filp, char *buf, size_t count, loff_t *offp )
 {
 //call when user is reading from this device
-	char msg[BUF_SIZE];
+	char msg[PAGE_SIZE];
 	size_t len;
 	len = krecv(sockfd_cli, msg, sizeof(msg), 0);
 	if(copy_to_user(buf, msg, len))

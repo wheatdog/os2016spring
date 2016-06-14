@@ -10,10 +10,9 @@
 #include <sys/time.h>
 
 #define PAGE_SIZE 4096
-#define BUF_SIZE 512
 int main (int argc, char* argv[])
 {
-	char buf[BUF_SIZE];
+	char buf[PAGE_SIZE];
 	int offset = 0;
 	int i, dev_fd, file_fd;// the fd for the device and the fd for the input file
 	size_t ret, file_size = 0, data_size = -1;
@@ -34,7 +33,6 @@ int main (int argc, char* argv[])
 		perror("failed to open /dev/slave_device\n");
 		return 1;
 	}
-	gettimeofday(&start ,NULL);
 	if( (file_fd = open (file_name, O_RDWR | O_CREAT | O_TRUNC)) < 0)
 	{
 		perror("failed to open input file\n");
@@ -49,6 +47,7 @@ int main (int argc, char* argv[])
 
 
 
+	gettimeofday(&start ,NULL);
 	switch(method[0])
 	{
 		case 'f'://fcntl : read()/write()
@@ -74,7 +73,6 @@ int main (int argc, char* argv[])
 					return 1;
 				}
 
-printf("%d, %d\n", len, offset);
 				if (len == 0) break;
 
                                 lseek(file_fd, len - 1, SEEK_END);
@@ -103,7 +101,7 @@ printf("%d, %d\n", len, offset);
 	}
 
 	gettimeofday(&end, NULL);
-	trans_time = (end.tv_sec - start.tv_sec)*1000 + (end.tv_usec - start.tv_usec)*0.0001;
+	trans_time = (end.tv_sec - start.tv_sec)*1000 + (end.tv_usec - start.tv_usec)*0.001;
 	printf("Transmission time: %lf ms, File size: %d bytes\n", trans_time, file_size);
 
 

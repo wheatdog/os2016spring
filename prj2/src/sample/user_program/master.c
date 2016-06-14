@@ -10,13 +10,12 @@
 #include <sys/time.h>
 
 #define PAGE_SIZE 4096
-#define BUF_SIZE 512
 size_t get_filesize(const char* filename);//get the size of the input file
 
 
 int main (int argc, char* argv[])
 {
-	char buf[BUF_SIZE];
+	char buf[PAGE_SIZE];
 	int i, dev_fd, file_fd;// the fd for the device and the fd for the input file
 	size_t ret, file_size, remain, offset = 0, size, tmp;
 	char file_name[50], method[20];

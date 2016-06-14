@@ -32,8 +32,7 @@
 #define master_IOCTL_CREATESOCK 0x12345677
 #define master_IOCTL_MMAP 0x12345678
 #define master_IOCTL_EXIT 0x12345679
-#define BUF_SIZE 512
-#define MMT_BUF_SIZE 8192
+#define PAGE_SIZE 4096
 typedef struct socket * ksocket_t;
 static char *buffer;
 struct dentry  *file1;//debug file
@@ -268,7 +267,7 @@ static int mmap_mmap(struct file *filp, struct vm_area_struct *vma)
 static ssize_t send_msg(struct file *file, const char __user *buf, size_t count, loff_t *data)
 {
 //call when user is writing to this device
-	char msg[BUF_SIZE];
+	char msg[PAGE_SIZE];
 	if(copy_from_user(msg, buf, count))
 		return -ENOMEM;
 	ksend(sockfd_cli, msg, count, 0);
